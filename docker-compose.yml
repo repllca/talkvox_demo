@@ -1,0 +1,42 @@
+services:
+  voicevox:
+    image: voicevox/voicevox_engine:cpu-latest
+    container_name: voicevox
+    ports:
+      - "50021:50021"
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: backend
+    ports:
+      - "8000:8000"
+    environment:
+      - VOICEVOX_URL=http://voicevox:50021
+    depends_on:
+      - voicevox
+    volumes:
+      - ./backend:/app
+    command: >
+      bash -lc "cd /app && pip install -r requirements.txt && \
+      uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: >
+      bash -lc "cd /app && npm install && npm start"
+
+networks:
+  default:
+    name: talkvox-network

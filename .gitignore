@@ -1,0 +1,77 @@
+# ============================================================
+# Node / Yarn (frontend)
+# ============================================================
+node_modules/
+dist/
+build/
+*.log
+*.env
+.env.local
+.env.production
+.vscode/
+.DS_Store
+
+# Yarn / npm cache
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+.pnp.js
+
+# ============================================================
+# Python (backend)
+# ============================================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.egg
+*.log
+.env
+.venv/
+venv/
+.envrc
+pip-wheel-metadata/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints
+
+# ============================================================
+# Docker
+# ============================================================
+# Build artifacts
+*.pid
+*.tar
+*.bak
+*.swp
+.dockerignore
+docker-compose.override.yml
+
+# ============================================================
+# OS / Editor / IDE
+# ============================================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# ============================================================
+# Miscellaneous
+# ============================================================
+# Local test files or datasets
+data/
+logs/
+tmp/
+results/
+checkpoints/
+outputs/
+uploads/
+media/
