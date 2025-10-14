@@ -1,10 +1,21 @@
+version: "3.9"
+
 services:
-  voicevox:
-    image: voicevox/voicevox_engine:cpu-latest
-    container_name: voicevox
+  frontend:
+    image: node:20-slim
+    container_name: frontend
+    working_dir: /app
     ports:
-      - "50021:50021"
-    restart: unless-stopped
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://backend:8000
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: bash -lc "corepack enable && yarn install && yarn dev"
 
   backend:
     build: ./backend
@@ -12,31 +23,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - VOICEVOX_URL=http://voicevox:50021
+      - VOICEVOX_URL=http://voicebox:50021
     depends_on:
-      - voicevox
+      - voicebox
     volumes:
       - ./backend:/app
-    command: >
-      bash -lc "cd /app && pip install -r requirements.txt && \
-      uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
-  frontend:
-    build: ./frontend
-    container_name: frontend
+  voicebox:
+    image: voicevox/voicevox_engine:cpu-latest
+    container_name: voicebox
     ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      - CHOKIDAR_USEPOLLING=true
-    depends_on:
-      - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: >
-      bash -lc "cd /app && npm install && npm start"
-
-networks:
-  default:
-    name: talkvox-network
+      - "50021:50021"
