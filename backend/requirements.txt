@@ -3,3 +3,5 @@ uvicorn
 opencv-python
 numpy
 websockets
+google-generativeai
+python-dotenv
