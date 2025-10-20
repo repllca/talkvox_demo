@@ -1,16 +1,23 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useCamera } from '../hooks/useCamera'
 
-const API_URL = 'http://localhost:8000/frame'
+const WS_URL = 'ws://localhost:8000/ws' // WebSocketサーバーURL
 
 export const CameraFeed = () => {
   const { videoRef, isActive, error } = useCamera()
+  const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
     if (!isActive || !videoRef.current) return
 
+    // WebSocketを開く
+    wsRef.current = new WebSocket(WS_URL)
+    wsRef.current.onopen = () => console.log('WebSocket 接続開始')
+    wsRef.current.onerror = err => console.error('WebSocket エラー:', err)
+    wsRef.current.onclose = () => console.log('WebSocket 切断')
+
     const sendFrame = async () => {
-      const video = videoRef.current
+      const video = videoRef.current!
       const canvas = document.createElement('canvas')
       canvas.width = video.videoWidth
       canvas.height = video.videoHeight
@@ -19,29 +26,26 @@ export const CameraFeed = () => {
 
       ctx.drawImage(video, 0, 0)
       const blob = await new Promise<Blob | null>(res =>
-        canvas.toBlob(res, 'image/jpeg')
+        canvas.toBlob(res, 'image/jpeg', 0.7)
       )
       if (!blob) return
 
-      const formData = new FormData()
-      formData.append('frame', blob, 'frame.jpg')
-
-      try {
-        await fetch(API_URL, {
-          method: 'POST',
-          body: formData,
-        })
-      } catch (err) {
-        console.warn('送信失敗:', err)
+      // blob → ArrayBufferに変換して送信
+      const buffer = await blob.arrayBuffer()
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(buffer)
       }
     }
 
-    const interval = setInterval(sendFrame, 200)
-    return () => clearInterval(interval)
+    const interval = setInterval(sendFrame, 100) // 10fpsくらい
+    return () => {
+      clearInterval(interval)
+      wsRef.current?.close()
+    }
   }, [isActive])
 
   return (
-    <div className="camera-container">
+    <div>
       {error && <p style={{ color: 'red' }}>{error}</p>}
       <video
         ref={videoRef}

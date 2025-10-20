@@ -1,24 +1,36 @@
-from fastapi import FastAPI
-import requests
-import os
+from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+import numpy as np
+import cv2
 
-app = FastAPI(title="TalkVox Backend")
+app = FastAPI()
 
-VOICEVOX_URL = os.getenv("VOICEVOX_URL", "http://voicevox:50021")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 実験中なら一旦 * でOK
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/speakers")
-def get_speakers():
-    """Voicevoxの話者一覧を取得"""
-    r = requests.get(f"{VOICEVOX_URL}/speakers")
-    return r.json()
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    print("✅ WebSocket 接続")
+    try:
+        while True:
+            data = await websocket.receive_bytes()  # バイナリ受信
+            np_arr = np.frombuffer(data, np.uint8)
+            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            if frame is None:
+                continue
 
-@app.get("/speak")
-def speak(text: str = "こんにちは", speaker: int = 1):
-    """音声生成エンドポイント"""
-    # 1. 音声クエリ作成
-    query = requests.post(f"{VOICEVOX_URL}/audio_query", params={"text": text, "speaker": speaker})
-    # 2. 音声合成
-    audio = requests.post(f"{VOICEVOX_URL}/synthesis", params={"speaker": speaker}, data=query.json())
-    with open("out.wav", "wb") as f:
-        f.write(audio.content)
-    return {"status": "ok", "text": text, "speaker": speaker}
+            # ここで処理（例: OpenCVで表示）
+            #cv2.imshow("Received", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    except Exception as e:
+        print("❌ 接続終了:", e)
+    finally:
+        cv2.destroyAllWindows()
+        await websocket.close()

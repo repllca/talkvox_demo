@@ -8,7 +8,7 @@ function App() {
   return (
     <>
       <nav style={{ marginBottom: '1rem' }}>
-        <Link to="/">虎ホタテ</Link> 
+        <Link to="/">TalkVox</Link> 
       </nav>
 
       <Routes>
