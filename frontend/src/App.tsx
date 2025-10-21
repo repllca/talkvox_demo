@@ -2,7 +2,6 @@
 import { Routes, Route, Link } from 'react-router-dom'
 import Home from './pages/Home'
 import Camera from './pages/Camera'
-import ChatInput from "./components/ChatInput"
 import './App.css'
 
 function App() {
@@ -12,6 +11,7 @@ function App() {
         <Link to="/">魚</Link> 
         
       </nav>
+      
 
       <Routes>
         <Route path="/" element={<Home />} />
