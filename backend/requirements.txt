@@ -8,3 +8,6 @@ python-dotenv
 aiohttp
 asyncio
 packaging
+mediapipe
+opencv-python-headless
+numpy

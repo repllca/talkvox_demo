@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import Camera from './pages/Camera'
 import Index from "./pages/Index"
 import VoiceTest from "./pages/VoiceTest"
+import HandTestPage from "./pages/HandTestPage"
 import './App.css'
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
         <Route path="/camera" element={<Camera />} />
         <Route path="/index" element={<Index />} />
         <Route path="/voice" element={<VoiceTest />} />
+        <Route path="/handtest" element={<HandTestPage/>} />
       </Routes>
     </>
   )

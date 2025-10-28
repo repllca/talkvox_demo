@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useCamera } from '../hooks/useCamera'
 
-const WS_URL = 'ws://localhost:8000/ws' // WebSocketサーバーURL
+const WS_URL = 'ws://backend:8000/ws' // WebSocketサーバーURL
 
 export const CameraFeed = () => {
   const { videoRef, isActive, error } = useCamera()
