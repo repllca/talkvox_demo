@@ -3,7 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.ws_router import router as ws_router
 from routers.chat_router import router as chat_router
-from routers.voice_router import router as voice_router 
+from routers.voice_router import router as voice_router
+from dotenv import load_dotenv
+
+# --- .env 読み込み ---
+load_dotenv()
+
 app = FastAPI()
 
 # --- ルーターを追加 ---
