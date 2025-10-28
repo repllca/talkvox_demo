@@ -5,3 +5,6 @@ numpy
 websockets
 google-generativeai
 python-dotenv
+aiohttp
+asyncio
+packaging

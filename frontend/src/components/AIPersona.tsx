@@ -1,6 +1,8 @@
 import { useState } from "react";
 
+
 type Emotion = "normal" | "happy" | "sad";
+
 
 interface PersonaProps {
   name: string;
@@ -8,6 +10,7 @@ interface PersonaProps {
   personality: string;
   images: Record<Emotion, string>;
 }
+
 
 export default function AIPersona({
   name,

@@ -3,11 +3,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.ws_router import router as ws_router
 from routers.chat_router import router as chat_router
-
+from routers.voice_router import router as voice_router 
 app = FastAPI()
 
 # --- ルーターを追加 ---
 app.include_router(chat_router, prefix="/chat", tags=["Chat"])
+app.include_router(voice_router, prefix="/voice", tags=["Voice"])
 app.include_router(ws_router, tags=["WebSocket"])
 
 # --- CORS設定 ---
