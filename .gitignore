@@ -10,7 +10,7 @@ build/
 .env.production
 .vscode/
 .DS_Store
-
+*.pt
 # Yarn / npm cache
 .yarn/*
 !.yarn/patches

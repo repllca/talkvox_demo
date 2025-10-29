@@ -1,22 +1,29 @@
-// frontend/src/pages/HandTestPage.tsx
 import { useEffect, useRef, useState } from "react";
 
-interface HandBox {
+interface Box {
   x_min: number;
   x_max: number;
   y_min: number;
   y_max: number;
+  confidence?: number;
+}
+
+interface DetectionData {
+  hands?: Box[];
+  persons?: Box[];
 }
 
 export default function HandTestPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const [hands, setHands] = useState<HandBox[]>([]);
+  const [hands, setHands] = useState<Box[]>([]);
+  const [persons, setPersons] = useState<Box[]>([]);
 
   // 1️⃣ カメラ起動
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true })
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
       .then((stream) => {
         if (videoRef.current) videoRef.current.srcObject = stream;
       })
@@ -33,8 +40,9 @@ export default function HandTestPage() {
 
     wsRef.current.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
+        const data: DetectionData = JSON.parse(event.data);
         setHands(data.hands || []);
+        setPersons(data.persons || []);
       } catch (e) {
         console.error("⚠️ WS メッセージ解析エラー", e);
       }
@@ -64,7 +72,7 @@ export default function HandTestPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // 4️⃣ Canvas にボックス描画
+  // 4️⃣ Canvas に手＋人物のボックスを描画
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
@@ -76,30 +84,40 @@ export default function HandTestPage() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // 🖐️ 手のボックス（緑）
     hands.forEach((h) => {
-      const x = h.x_min * canvas.width;
-      const y = h.y_min * canvas.height;
-      const w = (h.x_max - h.x_min) * canvas.width;
-      const hgt = (h.y_max - h.y_min) * canvas.height;
-
       ctx.strokeStyle = "lime";
       ctx.lineWidth = 3;
-      ctx.strokeRect(x, y, w, hgt);
+      ctx.strokeRect(h.x_min, h.y_min, h.x_max - h.x_min, h.y_max - h.y_min);
+      ctx.fillStyle = "lime";
+      ctx.font = "16px sans-serif";
+      ctx.fillText("Hand", h.x_min + 5, h.y_min + 20);
     });
-  }, [hands]);
+
+    // 🧍 人のボックス（赤）
+    persons.forEach((p) => {
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(p.x_min, p.y_min, p.x_max - p.x_min, p.y_max - p.y_min);
+      ctx.fillStyle = "red";
+      ctx.font = "16px sans-serif";
+      const confText = p.confidence ? `Person (${(p.confidence * 100).toFixed(0)}%)` : "Person";
+      ctx.fillText(confText, p.x_min + 5, p.y_min + 20);
+    });
+  }, [hands, persons]);
 
   return (
-<div className="relative w-[640px] h-[480px]">
-  <video
-    ref={videoRef}
-    autoPlay
-    playsInline
-    className="absolute top-0 left-0 w-full h-full rounded-lg shadow"
-  />
-  <canvas
-    ref={canvasRef}
-    className="absolute top-0 left-0 w-full h-full rounded-lg"
-  />
-</div>
+    <div className="relative w-[640px] h-[480px]">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className="absolute top-0 left-0 w-full h-full rounded-lg shadow"
+      />
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0 w-full h-full rounded-lg"
+      />
+    </div>
   );
 }

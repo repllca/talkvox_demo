@@ -11,3 +11,4 @@ packaging
 mediapipe
 opencv-python-headless
 numpy
+ultralytics 
