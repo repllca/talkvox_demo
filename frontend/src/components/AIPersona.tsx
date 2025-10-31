@@ -1,57 +1,35 @@
-import React, { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 
-interface AIPersonaProps {
+interface PersonaProps {
   name: string;
-  voiceType: string;
-  personality: string;
-  images: { normal: string; happy: string; sad: string };
-  expression?: "normal" | "happy" | "sad"; // ← 外部から制御可能
+  image: string;
+  expression: "normal" | "happy" | "sad";
 }
 
-const AIPersona: React.FC<AIPersonaProps> = ({
-  name,
-  images,
-  expression,
-}) => {
-  const [currentExp, setCurrentExp] = useState<keyof typeof images>("normal");
-
-  // 外部から表情が変化した場合に反映
-  useEffect(() => {
-    if (expression) {
-      setCurrentExp(expression);
-    }
-  }, [expression]);
+export default function AIPersona({ name, image, expression }: PersonaProps) {
+  const expressionFilter =
+    expression === "happy"
+      ? "brightness-110 saturate-120"
+      : expression === "sad"
+      ? "grayscale contrast-90 brightness-90"
+      : "";
 
   return (
-    <div className="flex flex-col items-center mt-4 transition-all duration-300">
-      {/* 表情画像 */}
-      <img
-        src={images[currentExp]}
-        alt={`${name} ${currentExp}`}
-        className="w-32 h-32 object-cover rounded-full shadow-lg transition-opacity duration-300"
+    <motion.div
+      className="flex flex-col items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.6 }}
+    >
+      <motion.img
+        key={expression}
+        src={image}
+        alt={name}
+        className={`w-64 h-auto drop-shadow-2xl transition-all duration-500 ${expressionFilter}`}
+        animate={{ y: [0, -6, 0] }}
+        transition={{ repeat: Infinity, duration: 4 }}
       />
-
-      {/* 名前 */}
-      <div className="mt-2 font-bold text-lg text-gray-700">{name}</div>
-
-      {/* 手動切り替えボタン（開発・確認用） */}
-      <div className="mt-2 flex gap-2">
-        {Object.keys(images).map((exp) => (
-          <button
-            key={exp}
-            onClick={() => setCurrentExp(exp as keyof typeof images)}
-            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
-              currentExp === exp
-                ? "bg-blue-500 text-white"
-                : "bg-blue-100 text-blue-800 hover:bg-blue-200"
-            }`}
-          >
-            {exp}
-          </button>
-        ))}
-      </div>
-    </div>
+      <p className="mt-2 text-lg font-semibold text-gray-700">{name}</p>
+    </motion.div>
   );
-};
-
-export default AIPersona;
+}

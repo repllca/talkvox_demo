@@ -1,24 +1,17 @@
-# ============================================================
-# Stage 1: Build (Node環境)
-# ============================================================
-FROM node:20-slim AS builder
+# frontend/Dockerfile
+FROM node:20-slim
 
 WORKDIR /app
+
+# Yarn と corepack
 RUN corepack enable
 
+# 依存関係コピー（先に package.json だけコピーして yarn install するとキャッシュ効く）
 COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
+RUN yarn install
 
+# アプリコピー
 COPY . .
-RUN yarn build
 
-# ============================================================
-# Stage 2: Run (Nginx)
-# ============================================================
-FROM nginx:alpine
-
-COPY --from=builder /app/dist /usr/share/nginx/html
-
-EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+# Vite dev server
+CMD ["bash", "-c", "yarn dev --host"]

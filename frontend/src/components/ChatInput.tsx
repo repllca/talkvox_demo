@@ -26,7 +26,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled = false }) => {
       <input
         type="text"
         className="flex-1 p-2 rounded-lg border border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
-        placeholder="メッセージを入力..."
+        placeholder="メッセージ;lk:;を入力..."
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}

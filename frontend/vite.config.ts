@@ -1,11 +1,14 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: true,   // ← これを追加！
-    port: 3000,   // ← 明示的に3000指定もOK
+    host: true,        // 0.0.0.0 で待ち受け
+    port: 3000,
+    strictPort: true,
+    watch: {
+      usePolling: true, // CHOKIDAR_USEPOLLING=true と合わせて確実に変更検知
+    },
   },
-})
+});

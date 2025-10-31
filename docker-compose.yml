@@ -1,19 +1,20 @@
 services:
   frontend:
-    image: node:20-slim
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: frontend
     working_dir: /app
     ports:
       - "3000:3000"
     environment:
       - REACT_APP_API_URL=http://backend:8000
-      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_USEPOLLING=true   # 重要！ホストの変更をコンテナで検知
     depends_on:
       - backend
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: bash -lc "corepack enable && yarn install && yarn dev"
+      - ./frontend:/app          # ホストの変更を反映
+      - /app/node_modules        # コンテナ内 node_modules を保持
 
   backend:
     build: ./backend
