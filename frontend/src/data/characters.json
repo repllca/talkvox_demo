@@ -1,0 +1,24 @@
+{
+  "ソラ": {
+    "name": "ソラ",
+    "voiceType": "明るい女性の声",
+    "personality": "ポジティブでフレンドリー",
+    "speakerId": 1,
+    "images": {
+      "normal": "./sora/normal.png",
+      "happy": "./sora/happy.png",
+      "sad": "./sora/sad.png"
+    }
+  },
+  "レイ": {
+    "name": "レイ",
+    "voiceType": "落ち着いた男性の声",
+    "personality": "とっても暗いキャラクター",
+    "speakerId": 3,
+    "images": {
+      "normal": "/rei/normal.png",
+      "happy": "/rei/happy.png",
+      "sad": "/rei/sad.png"
+    }
+  }
+}

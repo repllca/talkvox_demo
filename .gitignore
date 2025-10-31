@@ -67,7 +67,6 @@ Thumbs.db
 # Miscellaneous
 # ============================================================
 # Local test files or datasets
-data/
 logs/
 tmp/
 results/
