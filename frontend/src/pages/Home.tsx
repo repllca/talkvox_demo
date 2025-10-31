@@ -2,40 +2,19 @@ import { useState } from "react";
 import AIPersona from "../components/AIPersona";
 import CharacterSelector from "../components/CharacterSelector";
 import ChatMessage from "../components/ChatMessage";
-
-import sora_normal from "../assets/sora/normal.png";
-import sora_happy from "../assets/sora/happy.png";
-import sora_sad from "../assets/sora/sad.png";
-import rei_normal from "../assets/rei/normal.png";
-import rei_happy from "../assets/rei/happy.png";
-import rei_sad from "../assets/rei/sad.png";
-
-const characters = {
-  ソラ: {
-    name: "ソラ",
-    voiceType: "明るい女性の声",
-    personality: "ポジティブでフレンドリー",
-    speakerId: 1,
-    images: { normal: sora_normal, happy: sora_happy, sad: sora_sad },
-  },
-  レイ: {
-    name: "レイ",
-    voiceType: "落ち着いた男性の声",
-    personality: "とっても暗いキャラクター",
-    speakerId: 3,
-    images: { normal: rei_normal, happy: rei_happy, sad: rei_sad },
-  },
-};
+import charactersData from "../data/characters.json"; // JSON管理
 
 export default function Home() {
-  const [selected, setSelected] = useState<keyof typeof characters>("ソラ");
+  const [selected, setSelected] = useState<keyof typeof charactersData>("ソラ");
   const [messages, setMessages] = useState([
     { sender: "bot", type: "normal", text: "こんにちは！ソラです✨" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expression, setExpression] = useState<"normal" | "happy" | "sad">(
+    "normal"
+  );
 
-  // 🧠 メッセージ送信
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
@@ -44,51 +23,45 @@ export default function Home() {
     setInput("");
     setLoading(true);
 
+    setMessages((prev) => [
+      ...prev,
+      { sender: "bot", type: "thinking", text: "……考え中です🤔" },
+    ]);
+
     try {
-      // 🎬 考え中メッセージを一時表示
-      setMessages((prev) => [
-        ...prev,
-        { sender: "bot", type: "thinking", text: "……考え中です🤔" },
-      ]);
+      const character = charactersData[selected];
+      const personalityPrompt = `あなたの性格は「${character.personality}」です。次のユーザーの発言に応えてください。\n\nユーザー: ${input}`;
 
-      // 🧩 personalityを含めたプロンプト生成
-      const character = characters[selected];
-      const personalityPrompt = `あなたの性格は「${character.personality}」みたいな感じです。次のユーザーの発言に応えてください。\n\nユーザー: ${input}`;
-
-      // 🔗 Chat API に送信
       const chatRes = await fetch("http://localhost:8000/chat/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: personalityPrompt }),
       });
 
-      const chatData = await chatRes.json();
+      const chatData: { response: string; emotion?: "happy" | "sad" | "normal" } =
+        await chatRes.json();
       const botReply = chatData.response || "……（応答なし）";
+      const botEmotion = chatData.emotion || "normal";
 
-      // 🎬 返答を遅らせて表示
       setTimeout(async () => {
         setMessages((prev) => {
           const filtered = prev.filter((m) => m.type !== "thinking");
           return [...filtered, { sender: "bot", type: "normal", text: botReply }];
         });
 
-        // 🎤 VOICEVOXで音声生成
+        setExpression(botEmotion);
+
+        // VOICEVOX 音声生成
         try {
           const voiceRes = await fetch("http://localhost:8000/voice/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              text: botReply,
-              character: character.speakerId,
-            }),
+            body: JSON.stringify({ text: botReply, character: character.speakerId }),
           });
-
           const voiceData = await voiceRes.json();
-
           if (voiceData.audio_path) {
-            const audioUrl = `http://localhost:8000/${voiceData.audio_path}`;
-            const audio = new Audio(audioUrl);
-            audio.play().catch((e) => console.warn("音声再生に失敗:", e));
+            const audio = new Audio(`http://localhost:8000/${voiceData.audio_path}`);
+            audio.play().catch((e) => console.warn("音声再生失敗:", e));
           }
         } catch (err) {
           console.error("音声生成エラー:", err);
@@ -108,25 +81,21 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center mt-6">
-      {/* キャラ選択 */}
       <CharacterSelector
-        characters={Object.keys(characters)}
+        characters={Object.keys(charactersData)}
         selected={selected}
-        onSelect={(name) => setSelected(name as keyof typeof characters)}
+        onSelect={(name) => setSelected(name as keyof typeof charactersData)}
       />
 
-      {/* キャラ表示 */}
-      <AIPersona {...characters[selected]} />
+      <AIPersona {...charactersData[selected]} expression={expression} />
 
-      {/* チャット欄 */}
-      <div className="w-full max-w-md bg-white shadow rounded-2xl mt-6 p-4 flex flex-col">
+      <div className="w-full max-w-md bg-white shadow-xl rounded-2xl mt-6 p-4 flex flex-col">
         <div className="flex-1 overflow-y-auto space-y-2 mb-3 h-80 border border-gray-200 rounded-lg p-3">
           {messages.map((m, i) => (
             <ChatMessage key={i} message={m} />
           ))}
         </div>
 
-        {/* 入力欄 */}
         <div className="flex gap-2">
           <input
             value={input}

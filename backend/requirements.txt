@@ -1,14 +1,24 @@
+# --- Core Frameworks ---
 fastapi
 uvicorn
-opencv-python
-numpy
 websockets
-google-generativeai
-python-dotenv
 aiohttp
 asyncio
+python-dotenv
 packaging
+pydantic
+rich
+# --- AI / Vision ---
+torch==2.5.1
+torchvision==0.20.1
+ultralytics==8.3.30
+facenet-pytorch
 mediapipe
+scikit-learn
+
+# --- CV / Math ---
 opencv-python-headless
 numpy
-ultralytics 
+
+# --- Google API ---
+google-generativeai

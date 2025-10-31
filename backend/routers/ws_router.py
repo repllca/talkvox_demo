@@ -1,47 +1,44 @@
+# backend/routers/ws_router.py
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import numpy as np
 import cv2
+import logging
 
-from services.hand_tracking import detect_hands
-from services.person_detection import detect_persons
+from services.person_tracking import detect_persons
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
-@router.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocketで映像を受け取り、手・人物の位置情報を返す"""
+
+@router.websocket("/ws_person")
+async def ws_person_endpoint(websocket: WebSocket):
+    """
+    WebSocketで映像フレームを受信し、人物検出結果を返す。
+    クライアント(React)はJPEGバイナリを200msごとに送信する想定。
+    """
     await websocket.accept()
-    print("✅ WebSocket 接続開始")
+    logger.info("✅ WebSocket接続開始 /ws_person")
 
     try:
         while True:
-            try:
-                data = await websocket.receive_bytes()
-            except WebSocketDisconnect:
-                print("🔌 クライアント切断")
-                break
-            except Exception as e:
-                print("⚠️ フレーム受信エラー:", e)
-                continue
+            # JPEG受信
+            data = await websocket.receive_bytes()
 
-            # --- フレーム復元 ---
-            np_arr = np.frombuffer(data, np.uint8)
-            frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            # 画像デコード
+            nparr = np.frombuffer(data, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
             if frame is None:
                 continue
 
-            # --- 手の検出 ---
-            hands = detect_hands(frame)
-
-            # --- 人物検出（YOLO）---
+            # 検出
             persons = detect_persons(frame)
 
-            # --- 結果送信 ---
-            await websocket.send_json({
-                "hands": hands,
-                "persons": persons
-            })
+            # 検出結果送信（バックエンドではバウンディング描画しない）
+            await websocket.send_json({"persons": persons})
 
-    finally:
+    except WebSocketDisconnect:
+        logger.info("🔌 WebSocket切断")
+    except Exception as e:
+        logger.exception("❌ WebSocketエラー: %s", e)
         await websocket.close()
-        print("🔌 WebSocket 接続終了")

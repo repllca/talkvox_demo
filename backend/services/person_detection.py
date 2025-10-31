@@ -3,21 +3,25 @@ from ultralytics import YOLO
 # 起動時にモデルをロード（高速化）
 yolo_model = YOLO("yolov8n.pt")  # 軽量モデル。必要なら yolov8s.pt などに変更
 
-def detect_persons(frame):
-    """YOLOで人物を検出してバウンディングボックスを返す"""
-    results = yolo_model.predict(source=frame, classes=[0], conf=0.5, verbose=False)
+def detect_persons(frame: np.ndarray) -> List[Dict]:
+    results = model(frame)
+
+    # resultsがlistなら最初の要素を取る
+    if isinstance(results, list):
+        results = results[0]
+
     persons = []
+    boxes = results.boxes.xyxy.cpu().numpy().astype(int)
+    classes = results.boxes.cls.cpu().numpy().astype(int)
 
-    for r in results:
-        for box in r.boxes:
-            x_min, y_min, x_max, y_max = box.xyxy[0].tolist()
-            conf = float(box.conf[0])
-            persons.append({
-                "x_min": int(x_min),
-                "y_min": int(y_min),
-                "x_max": int(x_max),
-                "y_max": int(y_max),
-                "confidence": conf
-            })
-
+    for box, cls in zip(boxes, classes):
+        if cls != 0:
+            continue
+        x1, y1, x2, y2 = box
+        feature = extract_feature(frame, [x1, y1, x2, y2])
+        pid = identify_person(feature)
+        persons.append({
+            "id": pid,
+            "box": [x1, y1, x2, y2]
+        })
     return persons

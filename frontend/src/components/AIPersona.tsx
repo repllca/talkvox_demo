@@ -1,60 +1,57 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-
-type Emotion = "normal" | "happy" | "sad";
-
-
-interface PersonaProps {
+interface AIPersonaProps {
   name: string;
   voiceType: string;
   personality: string;
-  images: Record<Emotion, string>;
+  images: { normal: string; happy: string; sad: string };
+  expression?: "normal" | "happy" | "sad"; // ← 外部から制御可能
 }
 
-
-export default function AIPersona({
+const AIPersona: React.FC<AIPersonaProps> = ({
   name,
-  voiceType,
-  personality,
   images,
-}: PersonaProps) {
-  const [emotion, setEmotion] = useState<Emotion>("normal");
+  expression,
+}) => {
+  const [currentExp, setCurrentExp] = useState<keyof typeof images>("normal");
+
+  // 外部から表情が変化した場合に反映
+  useEffect(() => {
+    if (expression) {
+      setCurrentExp(expression);
+    }
+  }, [expression]);
 
   return (
-    <div className="flex flex-col items-center p-6 bg-white rounded-2xl shadow-md w-80">
-      <h2 className="text-xl font-semibold mb-2">{name}</h2>
-
+    <div className="flex flex-col items-center mt-4 transition-all duration-300">
+      {/* 表情画像 */}
       <img
-        src={images[emotion]}
-        alt={emotion}
-        className="w-48 h-48 object-cover rounded-full border"
+        src={images[currentExp]}
+        alt={`${name} ${currentExp}`}
+        className="w-32 h-32 object-cover rounded-full shadow-lg transition-opacity duration-300"
       />
 
-      <div className="flex gap-2 mt-4">
-        <button
-          onClick={() => setEmotion("happy")}
-          className="px-2 py-1 bg-yellow-200 rounded"
-        >
-          😊
-        </button>
-        <button
-          onClick={() => setEmotion("normal")}
-          className="px-2 py-1 bg-gray-200 rounded"
-        >
-          😐
-        </button>
-        <button
-          onClick={() => setEmotion("sad")}
-          className="px-2 py-1 bg-blue-200 rounded"
-        >
-          😢
-        </button>
-      </div>
+      {/* 名前 */}
+      <div className="mt-2 font-bold text-lg text-gray-700">{name}</div>
 
-      <div className="mt-4 text-center">
-        <p className="text-sm text-gray-600">声のタイプ：{voiceType}</p>
-        <p className="text-sm text-gray-600">性格：{personality}</p>
+      {/* 手動切り替えボタン（開発・確認用） */}
+      <div className="mt-2 flex gap-2">
+        {Object.keys(images).map((exp) => (
+          <button
+            key={exp}
+            onClick={() => setCurrentExp(exp as keyof typeof images)}
+            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              currentExp === exp
+                ? "bg-blue-500 text-white"
+                : "bg-blue-100 text-blue-800 hover:bg-blue-200"
+            }`}
+          >
+            {exp}
+          </button>
+        ))}
       </div>
     </div>
   );
-}
+};
+
+export default AIPersona;
