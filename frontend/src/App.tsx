@@ -6,6 +6,7 @@ import VoiceTest from "./pages/VoiceTest"
 import HandTestPage from "./pages/HandTestPage"
 import PoseActionPage from "./pages/PoseActionPage"
 import PersonTestPage from "./pages/PersonTestPage"
+import PersonTrackingProvider from "./components/PersonTrackingProvider"
 
 import './App.css'
 
@@ -16,7 +17,7 @@ function App() {
         <Link to="/">魚</Link> 
         
       </nav>
-      
+      <PersonTrackingProvider />
 
       <Routes>
         <Route path="/" element={<Home />} />

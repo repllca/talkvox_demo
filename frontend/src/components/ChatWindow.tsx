@@ -1,79 +1,104 @@
-import React, { useState, useRef, useEffect } from "react";
-import ChatMessage from "./ChatMessage";
-import MessageInput from "./MessageInput";
-import charactersData from "../data/characters.json";
-
-export default function ChatWindow() {
-  const [messages, setMessages] = useState([
-    {
-      sender: "bot",
-      type: "normal",
-      text: "こんにちは！ソラです✨",
-      avatar: "/rei/normal.png",
-    },
-  ]);
-
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(scrollToBottom, [messages]);
-
-  const handleSend = (text: string) => {
-    // ユーザー発言
-    setMessages((prev) => [
-      ...prev,
-      { sender: "user", type: "normal", text },
-    ]);
-
-    // AI応答（サンプル）
-    setTimeout(() => {
-      const botText = `なるほど、${text}ですね😊`;
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          type: "normal",
-          text: botText,
-          avatar: "/rei/normal.png",
-        },
-      ]);
-    }, 600);
-
-    // AI独り言（サンプル）
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          type: "monologue",
-          text: "今日は天気が良くて気持ちいいなぁ〜",
-        },
-      ]);
-    }, 1200);
-  };
-
-  return (
-    <div className="flex flex-col w-full max-w-md mx-auto mt-10 bg-gradient-to-b from-blue-50 to-white shadow-2xl rounded-2xl border border-gray-300 overflow-hidden">
-      {/* タイトル */}
-      <div className="bg-blue-600 text-white text-center py-3 font-bold text-lg shadow">
-        ソラとのチャット
-      </div>
-
-      {/* メッセージ表示 */}
-      <div className="flex flex-col flex-grow overflow-y-auto p-4 space-y-3 h-[480px] bg-blue-50">
-        {messages.map((m, i) => (
-          <ChatMessage key={i} message={m} />
-        ))}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* 入力欄 */}
-      <div className="border-t p-3 bg-white shadow-inner">
-        <MessageInput onSend={handleSend} />
-      </div>
-    </div>
-  );
-}
+import { useState, useRef, useEffect } from "react";
+import ChatMessage from "./ChatMessage";
+import MessageInput from "./MessageInput";
+import AIPersona from "./AIPersona";
+import charactersData from "../data/characters.json";
+
+interface ChatWindowProps {
+  selected: keyof typeof charactersData;
+  expression: "normal" | "happy" | "sad";
+  setExpression: (exp: "normal" | "happy" | "sad") => void;
+}
+
+export default function ChatWindow({ selected, expression, setExpression }: ChatWindowProps) {
+  const character = charactersData[selected];
+  const [messages, setMessages] = useState([
+    {
+      sender: "bot",
+      text: `こんにちは！${selected}です✨`,
+    },
+  ]);
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  useEffect(scrollToBottom, [messages]);
+
+  const handleSend = async (text: string) => {
+    if (!text.trim() || loading) return;
+    setLoading(true);
+
+    // ユーザー発言
+    setMessages((prev) => [...prev, { sender: "user", text }]);
+
+    try {
+      const personalityPrompt = `あなたの性格は「${character.personality}」です。ユーザー: ${text}`;
+
+      const chatRes = await fetch("http://localhost:8000/chat/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: personalityPrompt }),
+      });
+
+      const chatData: { response: string; emotion?: "happy" | "sad" | "normal" } = await chatRes.json();
+      const botReply = chatData.response || "……（応答なし）";
+      const botEmotion = chatData.emotion || "normal";
+
+      setTimeout(async () => {
+        setMessages((prev) => [...prev, { sender: "bot", text: botReply }]);
+        setExpression(botEmotion);
+
+        // VOICEVOX 音声
+        try {
+          const voiceRes = await fetch("http://localhost:8000/voice/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: botReply, character: character.speakerId }),
+          });
+          const voiceData = await voiceRes.json();
+          if (voiceData.audio_path) {
+            const audio = new Audio(`http://localhost:8000/${voiceData.audio_path}`);
+            audio.play().catch((e) => console.warn("音声再生失敗:", e));
+          }
+        } catch (err) {
+          console.error("音声生成エラー:", err);
+        }
+
+        setLoading(false);
+      }, 1000);
+    } catch (err) {
+      console.error("チャットエラー:", err);
+      setMessages((prev) => [
+        ...prev,
+        { sender: "bot", text: "エラーが発生しました😢" },
+      ]);
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center bg-white/70 backdrop-blur-xl shadow-2xl rounded-3xl p-4 border border-white/40 w-full max-w-2xl mx-auto">
+      {/* 🧑 キャラクター表示：固定 */}
+      <div className="mb-4">
+        <AIPersona
+          name={character.name}
+          image={character.images[expression]}
+          expression={expression}
+        />
+      </div>
+
+      {/* 💬 チャット部分（スクロール） */}
+      <div className="flex-1 w-full overflow-y-auto h-96 space-y-3 px-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        {messages.map((m, i) => (
+          <ChatMessage key={i} message={m} />
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* ✏️ 入力欄 */}
+      <div className="border-t p-3 bg-white w-full shadow-inner mt-2 rounded-b-3xl">
+        <MessageInput onSend={handleSend} loading={loading} />
+      </div>
+    </div>
+  );
+}

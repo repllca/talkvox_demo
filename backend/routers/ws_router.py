@@ -1,14 +1,13 @@
 from fastapi import APIRouter, WebSocket
+import numpy as np, cv2, traceback
 from services.person_tracking import detect_persons
-import numpy as np
-import cv2
-import traceback
 
 router = APIRouter()
 
 @router.websocket("/ws_person")
-async def ws_endpoint(ws: WebSocket):
+async def ws_person(ws: WebSocket):
     await ws.accept()
+    print("🟢 WebSocket /ws_person 接続開始")
     try:
         while True:
             data = await ws.receive_bytes()
@@ -17,13 +16,20 @@ async def ws_endpoint(ws: WebSocket):
             if frame is None:
                 continue
 
-            try:
-                persons_raw = detect_persons(frame)
-                await ws.send_json({"persons": persons_raw})
-            except Exception as e:
-                print("⚠️ detect_personsエラー:", e)
-                traceback.print_exc()
+            persons = detect_persons(frame)
+
+            # 新規検出者を確認
+            new_persons = [p for p in persons if p["is_new"]]
+            if new_persons:
+                print(f"👋 新しい人を検出: {len(new_persons)}名")
+                await ws.send_json({"event": "new_person_detected", "persons": new_persons})
+
+            # 全員の位置情報も送る
+            await ws.send_json({"event": "update", "persons": persons})
+
     except Exception as e:
-        print("⚠️ WS Error:", e)
+        print("⚠️ WS通信エラー:", e)
         traceback.print_exc()
+    finally:
+        print("🔴 /ws_person 切断")
         await ws.close()

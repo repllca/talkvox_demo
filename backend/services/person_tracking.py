@@ -2,18 +2,16 @@ import torch
 import cv2
 import numpy as np
 from ultralytics import YOLO
-from typing import List, Dict
 from sklearn.metrics.pairwise import cosine_similarity
-import time
+from typing import List, Dict
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# YOLOv8モデルロード
-model = YOLO("yolov8n.pt")
-model.to(device)
+# YOLOv8nモデルロード
+model = YOLO("yolov8n.pt").to(device)
 
-# データベース: id -> {"feature": ndarray, "first_seen": timestamp}
-person_db: Dict[int, dict] = {}
+# 過去検出人物の特徴DB
+person_db: Dict[int, np.ndarray] = {}
 next_person_id = 1
 
 def extract_feature(frame: np.ndarray, box: List[int]) -> np.ndarray:
@@ -24,62 +22,45 @@ def extract_feature(frame: np.ndarray, box: List[int]) -> np.ndarray:
     hist = cv2.normalize(hist, hist).flatten()
     return hist
 
-def identify_person(feature: np.ndarray, sim_thr: float = 0.7) -> dict:
-    """
-    登録済み判定付きで人物IDを返す
-    """
+def identify_person(feature: np.ndarray, threshold: float = 0.7) -> int:
     global next_person_id
-    now = time.time()
 
-    # 初回
     if not person_db:
-        person_db[next_person_id] = {"feature": feature, "first_seen": now}
+        person_db[next_person_id] = feature
         next_person_id += 1
-        return {"id": next_person_id - 1, "registered": False, "sim": 1.0}
+        return next_person_id - 1, True  # 新規登録
 
-    # 既存ユーザとの類似度を計算
-    sims = {pid: cosine_similarity(feature.reshape(1,-1), p["feature"].reshape(1,-1))[0,0]
-            for pid, p in person_db.items()}
-
+    sims = {pid: cosine_similarity(feature.reshape(1,-1), f.reshape(1,-1))[0,0]
+            for pid, f in person_db.items()}
     best_pid, best_sim = max(sims.items(), key=lambda x: x[1])
 
-    # 既存ユーザにマッチ
-    if best_sim >= sim_thr:
-        first_seen = person_db[best_pid]["first_seen"]
-        registered = (now - first_seen) >= 10  # 10秒以上で登録済み
-        # 特徴を更新してもOK
-        person_db[best_pid]["feature"] = feature
-        return {"id": best_pid, "registered": registered, "sim": best_sim}
+    if best_sim >= threshold:
+        return best_pid, False
+    else:
+        person_db[next_person_id] = feature
+        next_person_id += 1
+        return next_person_id - 1, True
 
-    # 新規ユーザ登録
-    person_db[next_person_id] = {"feature": feature, "first_seen": now}
-    next_person_id += 1
-    return {"id": next_person_id - 1, "registered": False, "sim": 0.0}
-
-
-def detect_persons(frame: np.ndarray, conf_thr: float = 0.5) -> List[dict]:
-    results = model(frame)[0]
+def detect_persons(frame: np.ndarray) -> List[Dict]:
+    results = model(frame)
     persons = []
 
-    for box, cls, conf in zip(results.boxes.xyxy, results.boxes.cls, results.boxes.conf):
-        if int(cls) != 0:  # personクラスのみ
-            continue
-        if conf < conf_thr:
-            continue
+    for r in results:
+        for box, cls, conf in zip(r.boxes.xyxy, r.boxes.cls, r.boxes.conf):
+            if int(cls) != 0 or conf < 0.6:
+                continue
 
-        x1, y1, x2, y2 = map(int, box)
-        feature = extract_feature(frame, [x1,y1,x2,y2])
-        person_info = identify_person(feature)
+            x1, y1, x2, y2 = map(int, box)
+            feature = extract_feature(frame, [x1, y1, x2, y2])
+            pid, is_new = identify_person(feature)
 
-        persons.append({
-            "id": person_info["id"],
-            "x_min": x1 / frame.shape[1],
-            "y_min": y1 / frame.shape[0],
-            "x_max": x2 / frame.shape[1],
-            "y_max": y2 / frame.shape[0],
-            "conf": float(conf),
-            "sim": float(person_info["sim"]),
-            "registered": person_info["registered"],
-        })
-
+            persons.append({
+                "id": pid,
+                "is_new": is_new,
+                "x_min": x1 / frame.shape[1],
+                "y_min": y1 / frame.shape[0],
+                "x_max": x2 / frame.shape[1],
+                "y_max": y2 / frame.shape[0],
+                "conf": float(conf),
+            })
     return persons

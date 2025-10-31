@@ -4,24 +4,18 @@ interface CharacterSelectorProps {
   onSelect: (name: string) => void;
 }
 
-export default function CharacterSelector({
-  characters,
-  selected,
-  onSelect,
-}: CharacterSelectorProps) {
+export default function CharacterSelector({ characters, selected, onSelect }: CharacterSelectorProps) {
   return (
-    <div className="flex gap-3 mb-6 justify-center">
-      {characters.map((char) => (
+    <div className="flex gap-4 mb-4">
+      {characters.map((c) => (
         <button
-          key={char}
-          onClick={() => onSelect(char)}
-          className={`px-3 py-1 rounded-md ${
-            selected === char
-              ? "bg-blue-500 text-white"
-              : "bg-gray-200 text-gray-700"
+          key={c}
+          onClick={() => onSelect(c)}
+          className={`px-4 py-2 rounded-xl shadow ${
+            c === selected ? "bg-blue-500 text-white" : "bg-gray-100 hover:bg-gray-200"
           }`}
         >
-          {char}
+          {c}
         </button>
       ))}
     </div>
