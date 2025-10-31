@@ -8,16 +8,22 @@ interface PersonBox {
   y_max: number;
   conf: number;
   sim: number;
-  status: "pending" | "confirmed";
+}
+
+interface TrackedPerson extends PersonBox {
+  lastSeen: number;
+  active: boolean;
+  registered: boolean; // 登録済みか
 }
 
 export default function PersonTestPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const [persons, setPersons] = useState<PersonBox[]>([]);
+  const [persons, setPersons] = useState<Map<number, TrackedPerson>>(new Map());
+  const personsRef = useRef(persons);
 
-  // 1️⃣ カメラ起動
+  // --- カメラ起動 ---
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: true })
       .then((stream) => {
@@ -26,94 +32,133 @@ export default function PersonTestPage() {
       .catch((err) => console.error("カメラ起動エラー:", err));
   }, []);
 
-  // 2️⃣ WebSocket接続
+  // --- personsRef 更新 ---
+  useEffect(() => {
+    personsRef.current = persons;
+  }, [persons]);
+
+  // --- WebSocket接続 ---
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8000/ws_person");
     wsRef.current = ws;
 
-    ws.onopen = () => console.log("✅ WS接続成功");
-    ws.onclose = () => console.log("🔌 WS切断");
-    ws.onerror = (err) => console.error("⚠️ WSエラー", err);
+    ws.onopen = () => console.log("✅ WS 接続成功");
+    ws.onclose = () => console.log("🔌 WS 接続終了");
+    ws.onerror = (err) => console.error("⚠️ WS エラー", err);
 
     ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.persons) {
-          setPersons(data.persons);
-        }
-      } catch (e) {
-        console.error("⚠️ WSメッセージ解析エラー:", e);
-      }
+      const data = JSON.parse(event.data);
+      const now = Date.now();
+
+      setPersons((prev) => {
+        const updated = new Map(prev);
+
+        data.persons?.forEach((p: PersonBox) => {
+          if (p.conf > 0.6 && p.sim > 0.6) {
+            const exist = updated.get(p.id);
+            const registered = exist?.registered || false;
+            updated.set(p.id, { ...p, lastSeen: now, active: true, registered });
+          }
+        });
+
+        // 2秒以上見えない場合は active=false
+        updated.forEach((p, id) => {
+          if (now - p.lastSeen > 2000) {
+            updated.set(id, { ...p, active: false });
+          }
+        });
+
+        return updated;
+      });
     };
 
-    return () => ws.close();
+    return () => {
+      ws.close();
+      wsRef.current = null;
+    };
   }, []);
 
-  // 3️⃣ 定期的にフレーム送信
+  // --- フレーム送信 ---
   useEffect(() => {
     const sendFrame = () => {
-      const ws = wsRef.current;
       const video = videoRef.current;
-      if (!ws || !video || ws.readyState !== WebSocket.OPEN) return;
+      const ws = wsRef.current;
+      if (!video || !ws || ws.readyState !== WebSocket.OPEN) return;
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
       canvas.toBlob((blob) => {
         if (blob) blob.arrayBuffer().then((buffer) => ws.send(buffer));
-      }, "image/jpeg");
+      }, "image/jpeg", 0.7);
     };
 
-    const interval = setInterval(sendFrame, 200);
+    const interval = setInterval(sendFrame, 100);
     return () => clearInterval(interval);
   }, []);
 
-  // 4️⃣ Canvas描画
+  // --- Canvas描画 ---
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
     const video = videoRef.current;
     if (!canvas || !ctx || !video) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    let animationFrameId: number;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const draw = () => {
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        animationFrameId = requestAnimationFrame(draw);
+        return;
+      }
 
-    persons.forEach((p) => {
-      const x = p.x_min * canvas.width;
-      const y = p.y_min * canvas.height;
-      const w = (p.x_max - p.x_min) * canvas.width;
-      const h = (p.y_max - p.y_min) * canvas.height;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 枠線
-      ctx.strokeStyle = p.status === "confirmed" ? "red" : "yellow";
-      ctx.lineWidth = p.status === "confirmed" ? 3 : 2;
-      ctx.strokeRect(x, y, w, h);
+      personsRef.current.forEach((p) => {
+        const x = p.x_min * canvas.width;
+        const y = p.y_min * canvas.height;
+        const w = (p.x_max - p.x_min) * canvas.width;
+        const h = (p.y_max - p.y_min) * canvas.height;
 
-      // テキスト
-      ctx.font = "14px Arial";
-      ctx.fillStyle = p.status === "confirmed" ? "red" : "yellow";
-      const label = `ID:${p.id} conf:${p.conf.toFixed(2)} sim:${p.sim.toFixed(2)} ${p.status}`;
-      ctx.fillText(label, x + 5, y - 5);
-    });
-  }, [persons]);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = p.registered ? "blue" : (p.active ? "red" : "rgba(255,0,0,0.3)");
+        ctx.strokeRect(x, y, w, h);
+
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(x, y - 20, 120, 18);
+        ctx.fillStyle = "white";
+        ctx.font = "14px sans-serif";
+        ctx.fillText(`id:${p.id} Conf:${p.conf.toFixed(2)}`, x + 5, y - 6);
+      });
+
+      animationFrameId = requestAnimationFrame(draw);
+    };
+
+    video.addEventListener("loadeddata", draw);
+    return () => {
+      video.removeEventListener("loadeddata", draw);
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
 
   return (
-    <div className="relative w-[640px] h-[480px] bg-black">
+    <div className="relative w-[640px] h-[480px] border border-gray-300 rounded-lg overflow-hidden">
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        className="absolute top-0 left-0 w-full h-full rounded-lg shadow"
+        muted
+        className="absolute top-0 left-0 w-full h-full object-cover"
       />
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 w-full h-full rounded-lg pointer-events-none"
+        className="absolute top-0 left-0 w-full h-full"
       />
     </div>
   );
