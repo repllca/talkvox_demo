@@ -1,3 +1,4 @@
+
 # --- Core Frameworks ---
 fastapi
 uvicorn
@@ -8,13 +9,17 @@ python-dotenv
 packaging
 pydantic
 rich
+
 # --- AI / Vision ---
 torch==2.5.1
 torchvision==0.20.1
+torchaudio
 ultralytics==8.3.30
 facenet-pytorch
 mediapipe
 scikit-learn
+transformers
+tensorboard
 
 # --- CV / Math ---
 opencv-python-headless
