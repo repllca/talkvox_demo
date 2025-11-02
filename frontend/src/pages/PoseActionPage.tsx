@@ -25,7 +25,7 @@ export default function PoseActionPage() {
 
   // 2️⃣ WebSocket 接続
   useEffect(() => {
-    wsRef.current = new WebSocket("ws://localhost:8000/pose/ws/pose");
+    wsRef.current = new WebSocket("ws://localhost:8000/ws/pose");
 
     wsRef.current.onopen = () => console.log("✅ Pose WS 接続成功");
     wsRef.current.onclose = () => console.log("🔌 Pose WS 接続終了");
