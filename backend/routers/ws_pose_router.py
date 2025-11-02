@@ -86,7 +86,7 @@ async def pose_ws(websocket: WebSocket):
                     print("🕒 手を上げ始めました")
                 else:
                     elapsed = now - hand_up_start
-                    if elapsed > 4 and not hand_up_triggered:
+                    if elapsed > 1 and not hand_up_triggered:
                         # ✅ 4秒以上経過したらトリガー発火
                         msg = "手を上げている人、何か質問はありますか？"
                         await websocket.send_json({"poses": response, "message": msg})

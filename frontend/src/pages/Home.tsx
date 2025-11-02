@@ -120,45 +120,49 @@ export default function Home() {
   // ========================================
   // Pose WebSocket 接続
   // ========================================
-  useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8000/ws/pose");
-    wsRef.current = ws;
+useEffect(() => {
+  const ws = new WebSocket("ws://localhost:8000/ws/pose");
+  wsRef.current = ws;
 
-    ws.onopen = () => console.log("✅ Pose WS 接続成功");
-    ws.onclose = () => console.log("🔌 Pose WS 接続終了");
-    ws.onerror = (err) => console.error("⚠️ Pose WS エラー:", err);
+  ws.onopen = () => console.log("✅ Pose WS 接続成功");
+  ws.onclose = () => console.log("🔌 Pose WS 接続終了");
+  ws.onerror = (err) => console.error("⚠️ Pose WS エラー:", err);
 
-    ws.onmessage = (event) => {
-      console.log("📩 Poseデータ受信:", event.data);
-      try {
-        const data = JSON.parse(event.data);
-        if (data && Array.isArray(data.poses)) {
-          const action = data.poses[0]?.action;
-          console.log("🎯 現在のaction:", action);
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log("📩 Poseデータ受信:", data);
 
-          const prevAction = lastPoseRef.current;
-          const justRaised =
-            (action === "left_hand_up" ||
-              action === "right_hand_up" ||
-              action === "both_hands_up") &&
-            prevAction === "not_raising_hand";
+      // 🎯 1️⃣ 手の動作データがある場合
+      if (data && Array.isArray(data.poses)) {
+        const action = data.poses[0]?.action;
+        const prevAction = lastPoseRef.current;
 
-          if (justRaised) {
-            console.log("🙌 手を上げました！（トリガー検出）");
-            handleBotAutoMessage("なんで手を上げているんですか？");
-          }
+        const justRaised =
+          (action === "left_hand_up" ||
+            action === "right_hand_up" ||
+            action === "both_hands_up") &&
+          prevAction === "not_raising_hand";
 
-          lastPoseRef.current = action || "not_raising_hand";
-        } else {
-          console.warn("⚠️ posesが存在しません:", data);
+        if (justRaised) {
+          console.log("🙌 手を上げました！（検出）");
         }
-      } catch (e) {
-        console.error("❌ JSON解析エラー:", e);
-      }
-    };
 
-    return () => ws.close();
-  }, []);
+        lastPoseRef.current = action || "not_raising_hand";
+      }
+
+      // 💬 2️⃣ サーバーからの特別メッセージがある場合（4秒経過）
+      if (data.message) {
+        console.log("🗣️ サーバーからのメッセージ:", data.message);
+        handleBotAutoMessage(data.message);
+      }
+    } catch (e) {
+      console.error("❌ JSON解析エラー:", e);
+    }
+  };
+
+  return () => ws.close();
+}, []);
 
   // ========================================
   // 定期的にフレーム送信 (300msごと)
@@ -219,8 +223,10 @@ const handleBotAutoMessage = (text: string) => {
     .then((res) => res.json())
     .then((data) => {
       if (data.audio_path) {
-        const audio = new Audio(`http://localhost:8000/${data.audio_path}`);
-        audio.play().catch((e) => console.warn("音声再生失敗:", e));
+        // data.audio_path: "/tmp/voices/xxx.wav"
+      const publicPath = data.audio_path.replace("/tmp", ""); // ✅ "/voices/351ad..." に変換
+      const audio = new Audio(`http://localhost:8000${publicPath}`);
+      audio.play().catch((e) => console.warn("音声再生失敗:", e));
       }
     })
     .catch((err) => console.error("音声生成エラー:", err));

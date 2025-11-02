@@ -1,6 +1,6 @@
-# backend/services/voice_service.py
 import os
 import aiohttp
+import uuid
 
 TALKVOX_URL = os.getenv("TALKVOX_URL", "http://voicebox:50021")
 
@@ -16,16 +16,27 @@ async def generate_voice(text: str, speaker: int = 1) -> str:
                 raise RuntimeError(f"audio_query error: {query_resp.status}")
             query = await query_resp.json()
 
-        # Step2: 合成処理
+        # Step2: 音声合成
         async with session.post(f"{TALKVOX_URL}/synthesis", params={"speaker": speaker}, json=query) as synth_resp:
             if synth_resp.status != 200:
                 raise RuntimeError(f"synthesis error: {synth_resp.status}")
 
             audio_bytes = await synth_resp.read()
 
-    # WAVファイルとして保存
-    output_path = "/app/output.wav"
+    # ✅ 出力先ディレクトリ
+    output_dir = "/tmp/voices"
+    os.makedirs(output_dir, exist_ok=True)
+
+    # ✅ ファイル名を生成
+    filename = f"{uuid.uuid4().hex}.wav"
+    output_path = os.path.join(output_dir, filename)
+
+    # ✅ ファイル保存
     with open(output_path, "wb") as f:
         f.write(audio_bytes)
 
-    return output_path
+    print(f"✅ 音声生成完了: {output_path}")
+
+    # ✅ 公開URLパスを返す（例: /voices/xxxx.wav）
+    public_path = f"/voices/{filename}"
+    return public_path
