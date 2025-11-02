@@ -5,9 +5,9 @@
     "personality": "ポジティブでフレンドリー",
     "speakerId": 1,
     "images": {
-      "normal": "./sora/normal.png",
-      "happy": "./sora/happy.png",
-      "sad": "./sora/sad.png"
+      "normal": "/images/sora/normal.png",
+      "happy": "/images/sora/happy.png",
+      "sad": "/images/sora/sad.png"
     }
   },
   "レイ": {
@@ -16,9 +16,9 @@
     "personality": "とっても暗いキャラクター",
     "speakerId": 3,
     "images": {
-      "normal": "/rei/normal.png",
-      "happy": "/rei/happy.png",
-      "sad": "/rei/sad.png"
+      "normal": "/images/rei/normal.png",
+      "happy": "/images/rei/happy.png",
+      "sad": "/images/rei/sad.png"
     }
   }
 }
