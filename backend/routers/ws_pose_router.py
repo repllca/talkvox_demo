@@ -14,6 +14,8 @@ async def pose_ws(websocket: WebSocket):
     print("✅ Pose WebSocket 接続")
 
     frame_count = 0
+    hand_up_start = None       # ⏱️ 手を上げた時刻
+    hand_up_triggered = False  # ✅ 一度トリガーしたかどうか
 
     try:
         while True:
@@ -23,7 +25,6 @@ async def pose_ws(websocket: WebSocket):
             # --- フロントからJPEGバイナリ受信 ---
             try:
                 data = await websocket.receive_bytes()
-                print(f"📥 {len(data)} bytes 受信")
             except Exception as e:
                 print(f"❌ 受信エラー: {e}")
                 break
@@ -32,33 +33,29 @@ async def pose_ws(websocket: WebSocket):
             np_arr = np.frombuffer(data, np.uint8)
             frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             if frame is None:
-                print("⚠️ フレームが None（デコード失敗）")
                 continue
 
             # --- YOLO pose 推論 ---
             try:
-                t0 = time.time()
                 results = model.predict(frame, verbose=False)
                 poses = results[0].keypoints.xy
-                elapsed = time.time() - t0
-                print(f"🧠 推論完了 ({elapsed:.2f}s) / {len(poses)}人検出")
             except Exception as e:
                 print(f"❌ YOLO推論エラー: {e}")
                 continue
 
             # --- 結果処理 ---
             response = []
+            any_hand_up = False
+
             for keypoints_tensor in poses:
                 keypoints = keypoints_tensor.tolist()
 
-                # 肩と手首の位置を利用して「手が上がっている」か判定
                 left_shoulder = keypoints[5]
                 right_shoulder = keypoints[6]
                 left_wrist = keypoints[9]
                 right_wrist = keypoints[10]
 
                 def is_hand_up(wrist, shoulder):
-                    # yが小さい（上）ほど上げている
                     return wrist[1] < shoulder[1] - 20 and abs(wrist[0] - shoulder[0]) < 150
 
                 left_up = is_hand_up(left_wrist, left_shoulder)
@@ -66,10 +63,13 @@ async def pose_ws(websocket: WebSocket):
 
                 if left_up and right_up:
                     action = "both_hands_up"
+                    any_hand_up = True
                 elif left_up:
                     action = "left_hand_up"
+                    any_hand_up = True
                 elif right_up:
                     action = "right_hand_up"
+                    any_hand_up = True
                 else:
                     action = "not_raising_hand"
 
@@ -78,13 +78,28 @@ async def pose_ws(websocket: WebSocket):
                     "timestamp": time.strftime("%H:%M:%S"),
                 })
 
-            # --- フロントへ送信 ---
-            try:
+            # --- 継続時間の確認 ---
+            now = time.time()
+            if any_hand_up:
+                if hand_up_start is None:
+                    hand_up_start = now
+                    print("🕒 手を上げ始めました")
+                else:
+                    elapsed = now - hand_up_start
+                    if elapsed > 4 and not hand_up_triggered:
+                        # ✅ 4秒以上経過したらトリガー発火
+                        msg = "手を上げている人、何か質問はありますか？"
+                        await websocket.send_json({"poses": response, "message": msg})
+                        print(f"📢 トリガー発火: {msg}")
+                        hand_up_triggered = True
+            else:
+                # 🙌 手を下ろしたらリセット
+                hand_up_start = None
+                hand_up_triggered = False
+
+            # --- 通常の結果送信 ---
+            if not hand_up_triggered:
                 await websocket.send_json({"poses": response})
-                print(f"📤 送信完了 ({len(response)}件): {response}")
-            except Exception as e:
-                print(f"❌ 送信エラー: {e}")
-                break
 
     except Exception as e:
         print("💥 全体エラー:", e)
