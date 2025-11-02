@@ -1,14 +1,18 @@
+# ============================================================
+# Person Tracking (YOLOv8 + CLIP + Adaptive Threshold + Smoothing)
+# ============================================================
+
 import os
-os.environ["TRANSFORMERS_NO_TORCH_LOAD_SAFE_CHECK"] = "1"
+os.environ["TRANSFORMERS_NO_TORCH_LOAD_SAFE_CHECK"] = "1"  # 🔐 torch<2.6安全対応
 
 import torch
 import cv2
 import numpy as np
+import time
 from ultralytics import YOLO
 from transformers import CLIPModel, CLIPProcessor
 from sklearn.metrics.pairwise import cosine_similarity
 from typing import List, Dict
-import time
 
 # ============================================================
 # デバイス設定
@@ -16,28 +20,29 @@ import time
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # ============================================================
-# モデルのロード（YOLO + CLIP）
+# モデルロード
 # ============================================================
 print("🟡 Loading YOLOv8n...")
-model = YOLO("yolov8n.pt")
-model.to(device)
+yolo_model = YOLO("yolov8n.pt").to(device)
 
 print("🟡 Loading CLIP model...")
-# clip_model定義部分
 clip_model = CLIPModel.from_pretrained(
     "openai/clip-vit-base-patch16",
     use_safetensors=True,
-    torch_dtype=torch.float16   # ✅ 半精度化
+    torch_dtype=torch.float32,
 ).to(device)
 clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch16")
 clip_model.eval()
 print("✅ CLIP loaded successfully")
 
 # ============================================================
-# 登録データベース
+# 登録DB（idごとに時系列特徴も保持）
 # ============================================================
 person_db: Dict[int, dict] = {}
 next_person_id = 1
+
+# 類似度履歴（自動しきい値調整用）
+similarity_history: List[float] = []
 
 
 # ============================================================
@@ -50,53 +55,83 @@ def extract_feature(frame: np.ndarray, box: List[int]) -> np.ndarray:
         return np.zeros(512)
 
     crop_rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
-
-    # CLIP入力形式に変換
     inputs = clip_processor(images=crop_rgb, return_tensors="pt").to(device)
     with torch.no_grad():
-        features = clip_model.get_image_features(**inputs)
-        features = features / features.norm(dim=-1, keepdim=True)
-    return features.cpu().numpy().flatten()
+        feats = clip_model.get_image_features(**inputs)
+        feats = feats / feats.norm(dim=-1, keepdim=True)
+    return feats.cpu().numpy().flatten()
 
 
 # ============================================================
-# ID判定と登録
+# adaptive threshold & smoothing
 # ============================================================
-def identify_person(feature: np.ndarray, sim_thr: float = 0.7) -> dict:
+def get_adaptive_threshold() -> float:
+    """類似度分布の平均値から自動調整"""
+    if len(similarity_history) < 5:
+        return 0.7  # 初期値
+    mean_sim = np.mean(similarity_history[-20:])  # 直近20件の平均
+    return float(np.clip(mean_sim + 0.05, 0.65, 0.85))  # 安全範囲
+
+
+# ============================================================
+# identify person
+# ============================================================
+def identify_person(feature: np.ndarray) -> dict:
+    """CLIP特徴から人物IDを特定（安定化バージョン）"""
     global next_person_id
-    now = time.time()
 
+    now = time.time()
+    # ---- 類似度しきい値を中央値＋補正に変更 ----
+    if len(similarity_history) >= 5:
+        thr = np.median(similarity_history[-20:]) + 0.02
+    else:
+        thr = 0.7
+    sim_thr = float(np.clip(thr, 0.65, 0.8))  # ← 上限を0.8に固定
+
+    # ---- 正規化（安定化の鍵） ----
+    feature = feature / (np.linalg.norm(feature) + 1e-8)
+
+    # 初回登録
     if not person_db:
-        person_db[next_person_id] = {"feature": feature, "first_seen": now}
+        person_db[next_person_id] = {"features": [feature], "first_seen": now}
         next_person_id += 1
         return {"id": next_person_id - 1, "registered": False, "sim": 1.0}
 
-    # 既存ユーザーとの類似度計算（CLIP特徴で比較）
-    sims = {
-        pid: cosine_similarity(feature.reshape(1, -1), p["feature"].reshape(1, -1))[0, 0]
-        for pid, p in person_db.items()
-    }
+    # ---- 既存ユーザーとの類似度を計算 ----
+    sims = {}
+    for pid, p in person_db.items():
+        avg_feat = np.mean(p["features"], axis=0)
+        avg_feat = avg_feat / (np.linalg.norm(avg_feat) + 1e-8)
+        sims[pid] = cosine_similarity(feature.reshape(1, -1), avg_feat.reshape(1, -1))[0, 0]
+
     best_pid, best_sim = max(sims.items(), key=lambda x: x[1])
+    similarity_history.append(best_sim)
 
+    # ---- 同一人物として扱う条件 ----
     if best_sim >= sim_thr:
-        first_seen = person_db[best_pid]["first_seen"]
-        registered = (now - first_seen) >= 10  # 10秒以上見続けたら登録
-        person_db[best_pid]["feature"] = feature
-        return {"id": best_pid, "registered": registered, "sim": best_sim}
+        p = person_db[best_pid]
+        # CLIP特徴を正規化して平滑更新
+        p["features"].append(feature)
+        if len(p["features"]) > 10:
+            p["features"].pop(0)
+        registered = (now - p["first_seen"]) >= 5.0
+        return {"id": best_pid, "registered": registered, "sim": float(best_sim)}
 
-    # 新規登録
-    person_db[next_person_id] = {"feature": feature, "first_seen": now}
+    # ---- 新規人物登録 ----
+    person_db[next_person_id] = {"features": [feature], "first_seen": now}
     next_person_id += 1
-    return {"id": next_person_id - 1, "registered": False, "sim": 0.0}
+    return {"id": next_person_id - 1, "registered": False, "sim": float(best_sim)}
 
 
 # ============================================================
-# メイン人物検出
+# detect_persons
 # ============================================================
 def detect_persons(frame: np.ndarray, conf_thr: float = 0.5) -> List[dict]:
-    results = model(frame)[0]
-    persons = []
+    """YOLO + CLIPで人物検出 + adaptive re-ID"""
+    frame = cv2.resize(frame, (320, 240))
+    results = yolo_model(frame, verbose=False)[0]
 
+    persons = []
     for box, cls, conf in zip(results.boxes.xyxy, results.boxes.cls, results.boxes.conf):
         if int(cls) != 0 or conf < conf_thr:
             continue
