@@ -6,6 +6,9 @@ export default defineConfig({
   server: {
     host: true,        // 0.0.0.0 で待ち受け
     port: 3000,
+     allowedHosts: [
+      'rayne-spectrological-subjudicially.ngrok-free.dev', // ← ここを追加！
+    ],
     strictPort: true,
     watch: {
       usePolling: true, // CHOKIDAR_USEPOLLING=true と合わせて確実に変更検知
