@@ -31,6 +31,13 @@ services:
       - ./backend/data:/app/data
     env_file:
       - ./backend/.env
+    deploy:
+          resources:
+            reservations:
+              devices:
+                - driver: nvidia
+                  count: all
+                  capabilities: [gpu]
     command: bash -lc "pip install -r requirements.txt && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
   voicebox:
